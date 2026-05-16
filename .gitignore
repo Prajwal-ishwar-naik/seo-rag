@@ -1,0 +1,6 @@
+venv/
+.env
+__pycache__/
+*.pdf
+temp_uploaded_doc.pdf
+.DS_Store
