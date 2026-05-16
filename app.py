@@ -12,7 +12,7 @@ from langchain_community.tools import DuckDuckGoSearchRun
 from langchain_classic.agents import AgentExecutor, create_react_agent
 from langchain_classic.tools.retriever import create_retriever_tool
 from langchain_core.prompts import ChatPromptTemplate
-from langchain import hub
+import langchainhub as hub
 import time
 
 
