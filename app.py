@@ -16,7 +16,7 @@ import time
 load_dotenv()
 
 st.set_page_config(
-    page_title="Antigravity RAG | AI Document Assistant",
+    page_title="SEO Answering | AI Document Assistant",
     page_icon="🚀",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -84,7 +84,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 with st.sidebar:
-    st.title("🚀 Configuration")
+    st.title("🚀 SEO Answering")
     st.markdown("---")
     
     groq_api_key = os.getenv("GROQ_API_KEY")
@@ -102,7 +102,7 @@ with st.sidebar:
     st.markdown("### How to use:")
     st.info("1. Upload a PDF document\n2. Wait for processing\n3. Ask questions in the chat")
 
-st.title("🧠 Antigravity RAG Pipeline")
+st.title("🧠 SEO Answering Pipeline")
 st.markdown("#### *Analyze your documents with state-of-the-art AI*")
 st.markdown("---")
 
