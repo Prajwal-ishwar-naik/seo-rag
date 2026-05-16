@@ -12,7 +12,7 @@ from langchain_community.tools import DuckDuckGoSearchRun
 from langchain_classic.agents import AgentExecutor, create_react_agent
 from langchain_classic.tools.retriever import create_retriever_tool
 from langchain_core.prompts import ChatPromptTemplate
-import langchainhub as hub
+from langchainhub import Client
 import time
 
 
@@ -182,8 +182,8 @@ if st.session_state.vectorstore is not None:
             tools = [retriever_tool, search_tool]
             
             # 2. ReAct Agent Prompt
-            # We'll use a standard ReAct prompt from LangChain Hub or define it
-            prompt = hub.pull("hwchase17/react-chat")
+            hub_client = Client()
+            prompt = hub_client.pull("hwchase17/react-chat")
             
             # 3. Agent
             agent = create_react_agent(llm, tools, prompt)
