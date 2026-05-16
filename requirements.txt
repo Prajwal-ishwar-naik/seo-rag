@@ -7,3 +7,5 @@ python-dotenv
 pypdf
 faiss-cpu
 sentence-transformers
+torchvision
+watchdog
