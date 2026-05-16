@@ -11,10 +11,9 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_classic.chains import create_retrieval_chain
 import time
 
-# Load environment variables
+
 load_dotenv()
 
-# Page configuration
 st.set_page_config(
     page_title="Antigravity RAG | AI Document Assistant",
     page_icon="🚀",
@@ -22,7 +21,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for premium look
 st.markdown("""
 <style>
     .main {
@@ -84,7 +82,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Sidebar
 with st.sidebar:
     st.title("🚀 Configuration")
     st.markdown("---")
@@ -104,48 +101,39 @@ with st.sidebar:
     st.markdown("### How to use:")
     st.info("1. Upload a PDF document\n2. Wait for processing\n3. Ask questions in the chat")
 
-# Header
 st.title("🧠 Antigravity RAG Pipeline")
 st.markdown("#### *Analyze your documents with state-of-the-art AI*")
 st.markdown("---")
 
-# Initialize session state
 if 'vectorstore' not in st.session_state:
     st.session_state.vectorstore = None
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
 
-# File Upload Section
 uploaded_file = st.file_uploader("Upload your document (PDF)", type=["pdf"])
 
 if uploaded_file and st.session_state.vectorstore is None:
     with st.spinner("🚀 Processing document... This might take a moment."):
-        # Save uploaded file temporarily
         temp_file_path = "temp_uploaded_doc.pdf"
         with open(temp_file_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
         
-        # Load and split document
         loader = PyPDFLoader(temp_file_path)
         docs = loader.load()
         
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
         final_documents = text_splitter.split_documents(docs)
         
-        # Create embeddings and vector store
         embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
         st.session_state.vectorstore = FAISS.from_documents(final_documents, embeddings)
         
-        # Cleanup temp file
         os.remove(temp_file_path)
         
         st.success("✅ Document processed successfully!")
 
-# Chat Interface
 if st.session_state.vectorstore is not None:
     st.markdown("### 💬 Chat with your Document")
     
-    # Display chat history
     for message in st.session_state.chat_history:
         role_class = "user-message" if message["role"] == "user" else "assistant-message"
         role_name = "👤 You" if message["role"] == "user" else "🤖 Assistant"
@@ -157,25 +145,19 @@ if st.session_state.vectorstore is not None:
         </div>
         """, unsafe_allow_html=True)
 
-    # User input
     user_query = st.chat_input("Ask a question about your document...")
 
     if user_query:
-        # Add user message to history
         st.session_state.chat_history.append({"role": "user", "content": user_query})
         
-        # Re-render history with new message immediately
         st.rerun()
 
-    # Process latest user message if any
     if st.session_state.chat_history and st.session_state.chat_history[-1]["role"] == "user":
         latest_query = st.session_state.chat_history[-1]["content"]
         
         with st.spinner("🤖 Thinking..."):
-            # Initialize LLM
             llm = ChatGroq(groq_api_key=groq_api_key, model_name=model_name)
             
-            # Create prompt template
             prompt = ChatPromptTemplate.from_template("""
             Answer the following question based only on the provided context.
             Think step by step before providing a detailed answer.
@@ -188,17 +170,14 @@ if st.session_state.vectorstore is not None:
             Question: {input}
             """)
             
-            # Create chains
             document_chain = create_stuff_documents_chain(llm, prompt)
             retriever = st.session_state.vectorstore.as_retriever()
             retrieval_chain = create_retrieval_chain(retriever, document_chain)
             
-            # Get response
             start_time = time.process_time()
             response = retrieval_chain.invoke({"input": latest_query})
             response_time = time.process_time() - start_time
             
-            # Add assistant response to history
             answer = response['answer']
             st.session_state.chat_history.append({"role": "assistant", "content": answer})
             st.rerun()
@@ -207,5 +186,4 @@ else:
     if not uploaded_file:
         st.warning("Please upload a PDF document to start chatting.")
     
-# Footer
 st.markdown("---")
