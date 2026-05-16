@@ -9,10 +9,8 @@ from langchain_community.vectorstores import FAISS
 from langchain_classic.chains import create_retrieval_chain, create_history_aware_retriever
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_community.tools import DuckDuckGoSearchRun
-from langchain_classic.agents import AgentExecutor, create_react_agent
 from langchain_classic.tools.retriever import create_retriever_tool
-from langchain_core.prompts import ChatPromptTemplate
-from langchainhub import Client
+from langchain_core.prompts import PromptTemplate
 import time
 
 
@@ -181,15 +179,36 @@ if st.session_state.vectorstore is not None:
             search_tool = DuckDuckGoSearchRun()
             tools = [retriever_tool, search_tool]
             
-            # 2. ReAct Agent Prompt
-            hub_client = Client()
-            prompt = hub_client.pull("hwchase17/react-chat")
+            # 2. ReAct Agent Prompt (Defined manually for stability)
+            template = """Answer the following questions as best you can. You have access to the following tools:
+
+{tools}
+
+Use the following format:
+
+Question: the input question you must answer
+Thought: you should always think about what to do
+Action: the action to take, should be one of [{tool_names}]
+Action Input: the input to the action
+Observation: the result of the action
+... (this Thought/Action/Action Input/Observation can repeat N times)
+Thought: I now know the final answer
+Final Answer: the final answer to the original input question
+
+Begin!
+
+{chat_history}
+Question: {input}
+Thought:{agent_scratchpad}"""
+
+            prompt = PromptTemplate.from_template(template)
             
             # 3. Agent
+            from langchain_classic.agents import AgentExecutor, create_react_agent
             agent = create_react_agent(llm, tools, prompt)
             agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True, handle_parsing_errors=True)
             
-            # Convert session state history to LangChain messages
+            # Convert session state history to LangChain messages (format for ReAct string)
             history = ""
             for msg in st.session_state.chat_history[:-1]:
                 role = "Human" if msg["role"] == "user" else "AI"
