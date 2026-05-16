@@ -8,7 +8,8 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_classic.chains import create_retrieval_chain
+from langchain_classic.chains import create_retrieval_chain, create_history_aware_retriever
+from langchain_core.messages import HumanMessage, AIMessage
 import time
 
 
@@ -94,7 +95,7 @@ with st.sidebar:
     model_name = st.selectbox(
         "Choose Groq Model",
         ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"],
-        index=1
+        index=0
     )
     
     st.markdown("---")
@@ -158,28 +159,59 @@ if st.session_state.vectorstore is not None:
         with st.spinner("🤖 Thinking..."):
             llm = ChatGroq(groq_api_key=groq_api_key, model_name=model_name)
             
-            prompt = ChatPromptTemplate.from_template("""
-            Answer the following question based only on the provided context.
-            Think step by step before providing a detailed answer.
-            If the answer is not in the context, say that you don't have enough information.
+            # 1. History-aware retriever
+            contextualize_q_system_prompt = (
+                "Given a chat history and the latest user question "
+                "which might reference context in the chat history, "
+                "formulate a standalone question which can be understood "
+                "without the chat history. Do NOT answer the question, "
+                "just reformulate it if needed and otherwise return it as is."
+            )
+            contextualize_q_prompt = ChatPromptTemplate.from_messages(
+                [
+                    ("system", contextualize_q_system_prompt),
+                    ("placeholder", "{chat_history}"),
+                    ("human", "{input}"),
+                ]
+            )
             
-            <context>
-            {context}
-            </context>
+            retriever = st.session_state.vectorstore.as_retriever(search_kwargs={"k": 5})
+            history_aware_retriever = create_history_aware_retriever(
+                llm, retriever, contextualize_q_prompt
+            )
             
-            Question: {input}
-            """)
+            # 2. QA chain
+            system_prompt = (
+                "You are a highly accurate technical assistant. Use the provided context to answer the question. "
+                "If the answer involves code or technical steps (like ASP.NET or CGI Perl), provide them clearly. "
+                "If the question mentions marks, provide a detailed and complete answer. "
+                "Format your answer cleanly using bullet points or numbered lists where appropriate. "
+                "If you don't know the answer based on the context, say that the information is not available.\n\n"
+                "{context}"
+            )
             
-            document_chain = create_stuff_documents_chain(llm, prompt)
-            retriever = st.session_state.vectorstore.as_retriever()
-            retrieval_chain = create_retrieval_chain(retriever, document_chain)
+            qa_prompt = ChatPromptTemplate.from_messages(
+                [
+                    ("system", system_prompt),
+                    ("placeholder", "{chat_history}"),
+                    ("human", "{input}"),
+                ]
+            )
             
-            start_time = time.process_time()
-            response = retrieval_chain.invoke({"input": latest_query})
-            response_time = time.process_time() - start_time
+            question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)
+            rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
             
-            answer = response['answer']
-            st.session_state.chat_history.append({"role": "assistant", "content": answer})
+            # Convert session state history to LangChain messages
+            history = []
+            for msg in st.session_state.chat_history[:-1]:
+                if msg["role"] == "user":
+                    history.append(HumanMessage(content=msg["content"]))
+                else:
+                    history.append(AIMessage(content=msg["content"]))
+            
+            response = rag_chain.invoke({"input": latest_query, "chat_history": history})
+            
+            st.session_state.chat_history.append({"role": "assistant", "content": response['answer']})
             st.rerun()
 
 else:
