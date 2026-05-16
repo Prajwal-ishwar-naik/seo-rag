@@ -6,13 +6,12 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
-from langchain_classic.chains.combine_documents import create_stuff_documents_chain
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_classic.chains import create_retrieval_chain, create_history_aware_retriever
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_community.tools import DuckDuckGoSearchRun
 from langchain_classic.agents import AgentExecutor, create_tool_calling_agent
 from langchain_classic.tools.retriever import create_retriever_tool
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 import time
 
 
@@ -174,8 +173,8 @@ if st.session_state.vectorstore is not None:
             retriever = st.session_state.vectorstore.as_retriever(search_kwargs={"k": 5})
             retriever_tool = create_retriever_tool(
                 retriever,
-                "document_search",
-                "Search for information about SEO and technical implementations within the uploaded document. Use this as your primary source."
+                "documentsearch",
+                "Use this tool to find information from the uploaded document. This is your primary source."
             )
             
             search_tool = DuckDuckGoSearchRun()
@@ -184,12 +183,13 @@ if st.session_state.vectorstore is not None:
             # 2. Agent Prompt
             agent_prompt = ChatPromptTemplate.from_messages(
                 [
-                    ("system", "You are a professional SEO assistant. You have access to a document search tool and a live web search tool. "
-                               "Primary source should be the document. If the document doesn't have the answer or it's outdated, use web search. "
-                               "Answer in a clean, detailed, and conversational way. Use bullet points for steps."),
-                    ("placeholder", "{chat_history}"),
+                    ("system", "You are a professional SEO expert. Answer questions using the provided tools. "
+                               "First, always try to use 'documentsearch' to find the answer. "
+                               "If the document doesn't have the info, use DuckDuckGo search. "
+                               "Be conversational and provide detailed technical answers."),
+                    MessagesPlaceholder(variable_name="chat_history"),
                     ("human", "{input}"),
-                    ("placeholder", "{agent_scratchpad}"),
+                    MessagesPlaceholder(variable_name="agent_scratchpad"),
                 ]
             )
             
