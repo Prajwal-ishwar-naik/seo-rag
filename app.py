@@ -209,4 +209,3 @@ else:
     
 # Footer
 st.markdown("---")
-st.markdown("<p style='text-align: center; color: #4b5563;'>Built with ❤️ by Antigravity AI</p>", unsafe_allow_html=True)
