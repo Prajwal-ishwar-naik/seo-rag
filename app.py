@@ -9,9 +9,10 @@ from langchain_community.vectorstores import FAISS
 from langchain_classic.chains import create_retrieval_chain, create_history_aware_retriever
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_community.tools import DuckDuckGoSearchRun
-from langchain_classic.agents import AgentExecutor, create_tool_calling_agent
+from langchain_classic.agents import AgentExecutor, create_react_agent
 from langchain_classic.tools.retriever import create_retriever_tool
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.prompts import ChatPromptTemplate
+from langchain import hub
 import time
 
 
@@ -174,41 +175,39 @@ if st.session_state.vectorstore is not None:
             retriever_tool = create_retriever_tool(
                 retriever,
                 "documentsearch",
-                "Use this tool to find information from the uploaded document. This is your primary source."
+                "Use this to find info from the uploaded document. This is your primary source."
             )
             
             search_tool = DuckDuckGoSearchRun()
             tools = [retriever_tool, search_tool]
             
-            # 2. Agent Prompt
-            agent_prompt = ChatPromptTemplate.from_messages(
-                [
-                    ("system", "You are a professional SEO expert. Answer questions using the provided tools. "
-                               "First, always try to use 'documentsearch' to find the answer. "
-                               "If the document doesn't have the info, use DuckDuckGo search. "
-                               "Be conversational and provide detailed technical answers."),
-                    MessagesPlaceholder(variable_name="chat_history"),
-                    ("human", "{input}"),
-                    MessagesPlaceholder(variable_name="agent_scratchpad"),
-                ]
-            )
+            # 2. ReAct Agent Prompt
+            # We'll use a standard ReAct prompt from LangChain Hub or define it
+            prompt = hub.pull("hwchase17/react-chat")
             
             # 3. Agent
-            agent = create_tool_calling_agent(llm, tools, agent_prompt)
-            agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+            agent = create_react_agent(llm, tools, prompt)
+            agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True, handle_parsing_errors=True)
             
             # Convert session state history to LangChain messages
-            history = []
+            history = ""
             for msg in st.session_state.chat_history[:-1]:
-                if msg["role"] == "user":
-                    history.append(HumanMessage(content=msg["content"]))
-                else:
-                    history.append(AIMessage(content=msg["content"]))
+                role = "Human" if msg["role"] == "user" else "AI"
+                history += f"{role}: {msg['content']}\n"
             
             # 4. Invoke
-            response = agent_executor.invoke({"input": latest_query, "chat_history": history})
+            try:
+                response = agent_executor.invoke({
+                    "input": latest_query,
+                    "chat_history": history,
+                    "tools": [t.name for t in tools],
+                    "tool_names": ", ".join([t.name for t in tools])
+                })
+                output = response['output']
+            except Exception as e:
+                output = f"I encountered an error while processing: {str(e)}. Please try rephrasing your question."
             
-            st.session_state.chat_history.append({"role": "assistant", "content": response['output']})
+            st.session_state.chat_history.append({"role": "assistant", "content": output})
             st.rerun()
 
 else:

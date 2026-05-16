@@ -11,3 +11,4 @@ torchvision
 watchdog
 duckduckgo-search
 ddgs
+langchainhub
