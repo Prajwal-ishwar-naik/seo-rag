@@ -10,6 +10,9 @@ from langchain_classic.chains.combine_documents import create_stuff_documents_ch
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_classic.chains import create_retrieval_chain, create_history_aware_retriever
 from langchain_core.messages import HumanMessage, AIMessage
+from langchain_community.tools import DuckDuckGoSearchRun
+from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain.tools.retriever import create_retriever_tool
 import time
 
 
@@ -157,49 +160,32 @@ if st.session_state.vectorstore is not None:
         latest_query = st.session_state.chat_history[-1]["content"]
         
         with st.spinner("🤖 Thinking..."):
-            llm = ChatGroq(groq_api_key=groq_api_key, model_name=model_name)
-            
-            # 1. History-aware retriever
-            contextualize_q_system_prompt = (
-                "Given a chat history and the latest user question "
-                "which might reference context in the chat history, "
-                "formulate a standalone question which can be understood "
-                "without the chat history. Do NOT answer the question, "
-                "just reformulate it if needed and otherwise return it as is."
-            )
-            contextualize_q_prompt = ChatPromptTemplate.from_messages(
-                [
-                    ("system", contextualize_q_system_prompt),
-                    ("placeholder", "{chat_history}"),
-                    ("human", "{input}"),
-                ]
-            )
-            
+            # 1. Tools
             retriever = st.session_state.vectorstore.as_retriever(search_kwargs={"k": 5})
-            history_aware_retriever = create_history_aware_retriever(
-                llm, retriever, contextualize_q_prompt
+            retriever_tool = create_retriever_tool(
+                retriever,
+                "document_search",
+                "Search for information about SEO and technical implementations within the uploaded document. Use this as your primary source."
             )
             
-            # 2. QA chain
-            system_prompt = (
-                "You are a highly accurate technical assistant. Use the provided context to answer the question. "
-                "If the answer involves code or technical steps (like ASP.NET or CGI Perl), provide them clearly. "
-                "If the question mentions marks, provide a detailed and complete answer. "
-                "Format your answer cleanly using bullet points or numbered lists where appropriate. "
-                "If you don't know the answer based on the context, say that the information is not available.\n\n"
-                "{context}"
-            )
+            search_tool = DuckDuckGoSearchRun()
+            tools = [retriever_tool, search_tool]
             
-            qa_prompt = ChatPromptTemplate.from_messages(
+            # 2. Agent Prompt
+            agent_prompt = ChatPromptTemplate.from_messages(
                 [
-                    ("system", system_prompt),
+                    ("system", "You are a professional SEO assistant. You have access to a document search tool and a live web search tool. "
+                               "Primary source should be the document. If the document doesn't have the answer or it's outdated, use web search. "
+                               "Answer in a clean, detailed, and conversational way. Use bullet points for steps."),
                     ("placeholder", "{chat_history}"),
                     ("human", "{input}"),
+                    ("placeholder", "{agent_scratchpad}"),
                 ]
             )
             
-            question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)
-            rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
+            # 3. Agent
+            agent = create_tool_calling_agent(llm, tools, agent_prompt)
+            agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
             
             # Convert session state history to LangChain messages
             history = []
@@ -209,9 +195,10 @@ if st.session_state.vectorstore is not None:
                 else:
                     history.append(AIMessage(content=msg["content"]))
             
-            response = rag_chain.invoke({"input": latest_query, "chat_history": history})
+            # 4. Invoke
+            response = agent_executor.invoke({"input": latest_query, "chat_history": history})
             
-            st.session_state.chat_history.append({"role": "assistant", "content": response['answer']})
+            st.session_state.chat_history.append({"role": "assistant", "content": response['output']})
             st.rerun()
 
 else:
