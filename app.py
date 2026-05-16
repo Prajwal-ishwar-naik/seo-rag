@@ -11,8 +11,8 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_classic.chains import create_retrieval_chain, create_history_aware_retriever
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_community.tools import DuckDuckGoSearchRun
-from langchain.agents import AgentExecutor, create_tool_calling_agent
-from langchain.tools.retriever import create_retriever_tool
+from langchain_classic.agents import AgentExecutor, create_tool_calling_agent
+from langchain_classic.tools.retriever import create_retriever_tool
 import time
 
 
