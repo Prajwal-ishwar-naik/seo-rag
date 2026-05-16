@@ -10,3 +10,4 @@ sentence-transformers
 torchvision
 watchdog
 duckduckgo-search
+ddgs

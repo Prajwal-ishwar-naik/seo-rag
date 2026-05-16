@@ -86,6 +86,14 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+@st.cache_resource
+def get_embeddings():
+    return HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+
+@st.cache_resource
+def get_llm(api_key, model):
+    return ChatGroq(groq_api_key=api_key, model_name=model)
+
 with st.sidebar:
     st.title("🚀 SEO Answering")
     st.markdown("---")
@@ -128,7 +136,7 @@ if uploaded_file and st.session_state.vectorstore is None:
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
         final_documents = text_splitter.split_documents(docs)
         
-        embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+        embeddings = get_embeddings()
         st.session_state.vectorstore = FAISS.from_documents(final_documents, embeddings)
         
         os.remove(temp_file_path)
@@ -160,6 +168,8 @@ if st.session_state.vectorstore is not None:
         latest_query = st.session_state.chat_history[-1]["content"]
         
         with st.spinner("🤖 Thinking..."):
+            llm = get_llm(groq_api_key, model_name)
+            
             # 1. Tools
             retriever = st.session_state.vectorstore.as_retriever(search_kwargs={"k": 5})
             retriever_tool = create_retriever_tool(
